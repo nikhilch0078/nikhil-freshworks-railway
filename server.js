@@ -18,6 +18,7 @@ const wss = new WebSocket.Server({
 app.use(cors());
 app.use(express.json());
 
+console.log(process.env.DATABASE_URL, '000000');
 mongoose.connect(process.env.DATABASE_URL, {}).then(() => console.log("DB connected")).catch((err) => console.log("DB Error => ", err));
 
 
