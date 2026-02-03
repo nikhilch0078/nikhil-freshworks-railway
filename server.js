@@ -2,8 +2,10 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
+const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
+const Call =require('./callSchema')
 
 const app = express();
 const server = http.createServer(app);
@@ -15,6 +17,9 @@ const wss = new WebSocket.Server({
 
 app.use(cors());
 app.use(express.json());
+
+mongoose.connect(process.env.DATABASE_URL, {}).then(() => console.log("DB connected")).catch((err) => console.log("DB Error => ", err));
+
 
 // Store connected Freshdesk clients
 const freshdeskClients = new Set();
@@ -121,48 +126,114 @@ async function createFreshdeskTicket(body) {
   }
 }
 
-app.post('/api/trigger-popup', (req, res) => {
-  const mybody = req.body;
-  const { requester_phone, responder_email, call_reference_id } = req.body;
+// app.post('/api/trigger-popup', (req, res) => {
+//   const mybody = req.body;
+//   const { requester_phone, responder_email, call_reference_id } = req.body;
   
-  if (!requester_phone || !responder_email || !call_reference_id) {
-    return res.status(400).json({ 
-      error: 'All fields are required',
-      example: { 
-        "requester_phone": "16138888888", 
-        "responder_email": "agent@example.com", 
-        "call_reference_id": "777777777" 
-      }
+//   if (!requester_phone || !responder_email || !call_reference_id) {
+//     return res.status(400).json({ 
+//       error: 'All fields are required',
+//       example: { 
+//         "requester_phone": "16138888888", 
+//         "responder_email": "agent@example.com", 
+//         "call_reference_id": "777777777" 
+//       }
+//     });
+//   }
+  
+//   console.log(`📢 Triggering popup for: ${requester_phone} (${responder_email})`);
+  
+//   // Create call data
+//   const callData = {
+//     event: 'incoming_call',
+//     caller: {
+//       callId: call_reference_id,
+//       number: requester_phone,
+//       email: responder_email,
+//       source: 'postman',
+//       timestamp: new Date().toISOString()
+//     }
+//   };
+  
+//   // Send to all connected Freshdesk clients
+//   const clientsCount = broadcastToFreshdesk(callData);
+
+//   createFreshdeskTicket(mybody);
+  
+//   res.json({
+//     success: true,
+//     message: `Popup triggered for ${requester_phone}`,
+//     timestamp: new Date().toISOString(),
+//     clients: clientsCount,
+//     data: callData
+//   });
+// });
+
+app.post("/api/trigger-popup", async (req, res) => {
+  try {
+    const mybody = req.body;
+    const { requester_phone, responder_email, call_reference_id, call_duration } = req.body;
+
+    if (!requester_phone || !responder_email || !call_reference_id) {
+      return res.status(400).json({
+        error: "All fields are required",
+        example: {
+          requester_phone: "16138888888",
+          responder_email: "agent@example.com",
+          call_reference_id: "777777777",
+          call_duration: 120
+        },
+      });
+    }
+
+    console.log(`📢 Triggering popup for: ${requester_phone} (${responder_email})`);
+
+    // Create call payload
+    const callData = {
+      event: "incoming_call",
+      caller: {
+        callId: call_reference_id,
+        number: requester_phone,
+        email: responder_email,
+        source: "postman",
+        timestamp: new Date().toISOString(),
+      },
+    };
+
+    // 🔹 Save call in MongoDB
+    const savedCall = await Call.create({
+      callId: call_reference_id,
+      callerPhone: requester_phone,
+      responderEmail: responder_email,
+      callName: "Incoming Call",
+      callDuration: call_duration || 0,
+      source: "postman",
+    });
+
+    // Send popup
+    const clientsCount = broadcastToFreshdesk(callData);
+
+    // Create Freshdesk ticket
+    createFreshdeskTicket(mybody);
+
+    res.json({
+      success: true,
+      message: `Popup triggered for ${requester_phone}`,
+      clients: clientsCount,
+      call_saved: true,
+      call_db_id: savedCall._id,
+      data: callData,
+    });
+  } catch (error) {
+    console.error("❌ Error saving call:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to trigger popup or save call",
     });
   }
-  
-  console.log(`📢 Triggering popup for: ${requester_phone} (${responder_email})`);
-  
-  // Create call data
-  const callData = {
-    event: 'incoming_call',
-    caller: {
-      callId: call_reference_id,
-      number: requester_phone,
-      email: responder_email,
-      source: 'postman',
-      timestamp: new Date().toISOString()
-    }
-  };
-  
-  // Send to all connected Freshdesk clients
-  const clientsCount = broadcastToFreshdesk(callData);
-
-  createFreshdeskTicket(mybody);
-  
-  res.json({
-    success: true,
-    message: `Popup triggered for ${requester_phone}`,
-    timestamp: new Date().toISOString(),
-    clients: clientsCount,
-    data: callData
-  });
 });
+
+
 
 // 2. Simulate a complete call
 app.post('/api/simulate-call', (req, res) => {
