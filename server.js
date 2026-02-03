@@ -277,7 +277,7 @@ app.post("/api/trigger-popup", async (req, res) => {
 
     // 🔹 Payload for Freshdesk popup
     const callData = {
-      event: event || "ringing",
+      event: 'incoming_call',
       direction: direction || "inbound",
       caller: {
         callId: callId,
