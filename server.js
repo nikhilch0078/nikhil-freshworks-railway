@@ -284,6 +284,7 @@ app.post("/api/trigger-popup", async (req, res) => {
         number: caller.number,
         name: caller.name || "Unknown",
         source: "client",
+        email: email || "",
         timestamp: timestamp || new Date().toISOString(),
         queue,
         language,
