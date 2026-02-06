@@ -344,7 +344,7 @@ app.post("/api/trigger-popup", async (req, res) => {
     };
     const clientsCount = broadcastToFreshdesk(callData);
 
-    createFreshdeskTicket(body);
+    // createFreshdeskTicket(body);
 
     res.json({
       success: true,
